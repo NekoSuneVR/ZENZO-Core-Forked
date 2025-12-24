@@ -155,11 +155,11 @@ void SendWidget::refreshAmounts() {
     int nPriceUSD = walletModel->getPriceUSD();
     bool fDisplayFiat = false;
     if (nDisplayUnit == BitcoinUnits::PIV) {
-        // We only display fiat if we've recieved a valid price oracle, zero means we're missing data.
-        if ((nPriceUSD * 0.01) >= 0.01) {
+        // We only display fiat if we've recieved a valid price value.
+        if (nPriceUSD > 0) {
             // We have data! Convert from integer to double, then append the display.
             fDisplayFiat = true;
-            float totalUSD = (total / COIN) * (nPriceUSD * 0.01);
+            float totalUSD = (total / COIN) * (nPriceUSD * 0.00000001);
             if (totalUSD > 0.01) {
                 // To save space; Only display fiat if we have a penny or more.
                 strAmountSend += QString::fromStdString(" ($" + strprintf("%.2f", totalUSD) + ")");
@@ -183,7 +183,7 @@ void SendWidget::refreshAmounts() {
 
     // Remaining (Fiat)
     if (fDisplayFiat) {
-        float totalUSD = (totalAmount / COIN) * (nPriceUSD * 0.01);
+        float totalUSD = (totalAmount / COIN) * (nPriceUSD * 0.00000001);
         if (totalUSD > 0.01) {
             strAmountRemaining += QString::fromStdString(" ($" + strprintf("%.2f", totalUSD) + ")");
         }

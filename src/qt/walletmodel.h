@@ -37,6 +37,8 @@ class uint256;
 
 QT_BEGIN_NAMESPACE
 class QTimer;
+class QNetworkAccessManager;
+class QNetworkReply;
 QT_END_NAMESPACE
 
 class SendCoinsRecipient
@@ -151,7 +153,7 @@ public:
 
     bool hasWallet() { return wallet; };
 
-    /* Fetch ZNZ's prices (updated periodically by spork) */
+    /* Fetch ZNZ's USD price (updated periodically by API, scaled by 1e8). */
     // USD
     int getPriceUSD() const;
 
@@ -308,10 +310,18 @@ private:
     int cachedTxLocks;
 
     QTimer* pollTimer;
+    QTimer* priceTimer;
+    QNetworkAccessManager* priceNetManager;
+    bool priceRequestInFlight;
+    int apiPriceUSD;
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
     Q_INVOKABLE void checkBalanceChanged();
+
+private Q_SLOTS:
+    void fetchPriceUSD();
+    void onPriceRequestFinished(QNetworkReply* reply);
 
 Q_SIGNALS:
     // Signal that balance in wallet changed

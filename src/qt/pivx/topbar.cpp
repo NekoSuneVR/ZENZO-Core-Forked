@@ -672,10 +672,10 @@ void TopBar::updateBalances(const CAmount& balance, const CAmount& lockedBalance
     /* Fiat display */
     // Only display fiat when we're using the largest denomination of coin display
     if (nDisplayUnit == BitcoinUnits::PIV) {
-        // We only display fiat if we've recieved a valid price oracle, zero means we're missing data.
-        if ((priceUSD * 0.01) >= 0.01) {
+        // We only display fiat if we've recieved a valid price value.
+        if (priceUSD > 0) {
             // We have data! Convert from integer to double, then append the display.
-            float totalUSD = (znzAvailableBalance / COIN) * (priceUSD * 0.01);
+            float totalUSD = (znzAvailableBalance / COIN) * (priceUSD * 0.00000001);
             if (totalUSD > 0.01) {
                 // To save space; Only display fiat if we have a penny or more.
                 totalZNZ += QString::fromStdString(" ($" + strprintf("%.2f", totalUSD) + ")");

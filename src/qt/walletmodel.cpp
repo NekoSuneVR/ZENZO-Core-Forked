@@ -22,18 +22,35 @@
 #include "wallet/walletdb.h" // for BackupWallet
 #include <stdint.h>
 #include <iostream>
+#include <cmath>
 
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSet>
 #include <QTimer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QUrl>
+
+namespace {
+const char* PRICE_API_URL = "https://api.nekosunevr.co.uk/v5/cryptoapi/nekogeko/prices/USD?id=zenzo";
+const int PRICE_UPDATE_DELAY_MS = 5 * 60 * 1000;
+const double PRICE_SCALE = 100000000.0;
+}
 
 
 WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* parent) : QObject(parent), wallet(wallet), optionsModel(optionsModel), addressTableModel(0),
                                                                                          transactionTableModel(0),
                                                                                          recentRequestsTableModel(0),
                                                                                          cachedBalance(0), cachedLockedBalance(0), cachedUnconfirmedBalance(0), cachedImmatureBalance(0),
+                                                                                         cachedWatchOnlyBalance(0), cachedWatchUnconfBalance(0), cachedWatchImmatureBalance(0),
+                                                                                         cachedDelegatedBalance(0), cachedColdStakedBalance(0), cachedPriceUSD(0),
                                                                                          cachedEncryptionStatus(Unencrypted),
-                                                                                         cachedNumBlocks(0)
+                                                                                         cachedNumBlocks(0), cachedTxLocks(0),
+                                                                                         priceTimer(nullptr), priceNetManager(nullptr),
+                                                                                         priceRequestInFlight(false), apiPriceUSD(0)
 {
     fHaveWatchOnly = wallet->HaveWatchOnly();
     fHaveMultiSig = wallet->HaveMultiSig();
@@ -47,6 +64,14 @@ WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* p
     pollTimer = new QTimer(this);
     connect(pollTimer, SIGNAL(timeout()), this, SLOT(pollBalanceChanged()));
     pollTimer->start(MODEL_UPDATE_DELAY);
+
+    priceNetManager = new QNetworkAccessManager(this);
+    connect(priceNetManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(onPriceRequestFinished(QNetworkReply*)));
+
+    priceTimer = new QTimer(this);
+    connect(priceTimer, SIGNAL(timeout()), this, SLOT(fetchPriceUSD()));
+    priceTimer->start(PRICE_UPDATE_DELAY_MS);
+    QMetaObject::invokeMethod(this, "fetchPriceUSD", Qt::QueuedConnection);
 
     subscribeToCoreSignals();
 }
@@ -76,7 +101,54 @@ bool WalletModel::isStakingStatusActive() const {
 
 int WalletModel::getPriceUSD() const
 {
-    return sporkManager.GetSporkValue(SPORK_19_PRICE_USD);
+    return apiPriceUSD;
+}
+
+void WalletModel::fetchPriceUSD()
+{
+    if (!priceNetManager || priceRequestInFlight)
+        return;
+
+    priceRequestInFlight = true;
+    QNetworkRequest request(QUrl(QString::fromLatin1(PRICE_API_URL)));
+    request.setHeader(QNetworkRequest::UserAgentHeader, "ZENZO-Qt");
+    priceNetManager->get(request);
+}
+
+void WalletModel::onPriceRequestFinished(QNetworkReply* reply)
+{
+    priceRequestInFlight = false;
+    if (!reply)
+        return;
+
+    reply->deleteLater();
+    if (reply->error() != QNetworkReply::NoError)
+        return;
+
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject())
+        return;
+
+    const QJsonObject obj = doc.object();
+    const QJsonValue priceValue = obj.value("current_price");
+    bool ok = false;
+    double price = 0.0;
+    if (priceValue.isString()) {
+        price = priceValue.toString().toDouble(&ok);
+    } else if (priceValue.isDouble()) {
+        price = priceValue.toDouble();
+        ok = true;
+    }
+
+    if (!ok || price <= 0.0)
+        return;
+
+    const int newPriceUSD = static_cast<int>(std::round(price * PRICE_SCALE));
+    if (newPriceUSD != apiPriceUSD) {
+        apiPriceUSD = newPriceUSD;
+        fForceCheckBalanceChanged = true;
+    }
 }
 
 CAmount WalletModel::getBalance(const CCoinControl* coinControl) const
