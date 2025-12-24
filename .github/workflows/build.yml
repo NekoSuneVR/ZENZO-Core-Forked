@@ -7,7 +7,7 @@ on:
 
 jobs:
   linux-amd64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -35,7 +35,7 @@ jobs:
           path: artifacts/*
 
   linux-arm64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -64,7 +64,7 @@ jobs:
           path: artifacts/*
 
   windows-x86_64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
