@@ -10,25 +10,32 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git \
-            cmake g++-multilib binutils-gold python3 patch
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git cmake g++-multilib binutils-gold \
+            python3 patch
+
       - name: Build depends
         run: |
           HOST=$(./depends/config.guess)
           make -C depends -j"$(nproc)"
+
       - name: Build (Linux amd64)
         run: |
           HOST=$(./depends/config.guess)
           ./autogen.sh
           CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure --prefix=/
           make -j"$(nproc)"
+
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
           cp src/zenzod src/zenzo-cli src/qt/zenzo-qt artifacts/
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
@@ -38,26 +45,34 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git \
-            cmake binutils-gold python3 patch g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git cmake binutils-gold python3 patch \
+            g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
       - name: Build depends
         run: |
           HOST=aarch64-linux-gnu
           make -C depends HOST="$HOST" -j"$(nproc)"
+
       - name: Build (Linux arm64)
         run: |
           HOST=aarch64-linux-gnu
           BUILD=$(./depends/config.guess)
           ./autogen.sh
-          CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure --prefix=/ --host="$HOST" --build="$BUILD"
+          CONFIG_SITE="$PWD/depends/$HOST/share/config.site" \
+            ./configure --prefix=/ --host="$HOST" --build="$BUILD"
           make -j"$(nproc)"
+
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
           cp src/zenzod src/zenzo-cli src/qt/zenzo-qt artifacts/
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-arm64
@@ -67,30 +82,47 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
+
+      - name: Install dependencies (MinGW + GCC-9)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git \
-            cmake binutils-gold python3 patch g++-mingw-w64-x86-64 nsis
-          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix || true
-          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix || true
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils curl git cmake binutils-gold python3 patch \
+            g++-mingw-w64-x86-64 nsis \
+            gcc-9 g++-9
+
+          # Force legacy GCC for Qt 5.9
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 90
+
+          # Ensure MinGW uses POSIX toolchain
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc \
+            /usr/bin/x86_64-w64-mingw32-gcc-posix || true
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ \
+            /usr/bin/x86_64-w64-mingw32-g++-posix || true
+
       - name: Build depends
         run: |
           HOST=x86_64-w64-mingw32
           make -C depends HOST="$HOST" -j"$(nproc)"
+
       - name: Build (Windows x86_64)
         run: |
           HOST=x86_64-w64-mingw32
           BUILD=$(./depends/config.guess)
           ./autogen.sh
-          CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure --prefix=/ --host="$HOST" --build="$BUILD"
+          CONFIG_SITE="$PWD/depends/$HOST/share/config.site" \
+            ./configure --prefix=/ --host="$HOST" --build="$BUILD"
           make -j"$(nproc)"
           make deploy
+
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
           cp src/qt/zenzo-qt.exe src/zenzod.exe src/zenzo-cli.exe artifacts/
           if [ -d dist ]; then cp dist/* artifacts/; fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
